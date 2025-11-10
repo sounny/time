@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Time</title>
+  <style>
+    /* ---------- Base ---------- */
+    :root{
+      --bg:#0b0c10; --fg:#e9e9ef; --muted:#a7a7b3; --card:#15161d; --border:#242633; --accent:#6ea8fe;
+      --shadow: 0 1px 2px rgba(0,0,0,.15), 0 8px 24px rgba(0,0,0,.18);
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f7f7fb; --fg:#14151a; --muted:#55586a; --card:#ffffff; --border:#e8e9ee; --accent:#2b59ff; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08); }
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0; background:var(--bg); color:var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      -webkit-font-smoothing:antialiased; line-height:1.35;
+    }
+    .container{ max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+    /* ---------- Header / Controls ---------- */
+    header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 12px;
+    }
+    h1{ font-size: clamp(22px, 2.4vw, 28px); margin:0; letter-spacing:.2px; }
+    .controls{ display:flex; gap:8px; flex-wrap:wrap; }
+    button, .btn{
+      appearance:none; border:1px solid var(--border); background:var(--card); color:var(--fg);
+      padding:8px 10px; border-radius:9px; cursor:pointer; font-weight:600; box-shadow: var(--shadow);
+    }
+    button:hover{ border-color:var(--accent); }
+    button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+    /* ---------- Hero Clock ---------- */
+    .hero{
+      border:1px solid var(--border); background:var(--card); border-radius:14px; padding:22px; box-shadow: var(--shadow);
+      display:grid; gap:10px; justify-items:center; margin-bottom: 18px;
+    }
+    .hero-label{ font-size:14px; color:var(--muted); }
+    .bigtime{
+      font-size: clamp(40px, 9vw, 96px);
+      line-height:1; font-weight:800; letter-spacing: .02em;
+      font-variant-numeric: tabular-nums;
+      text-align:center;
+    }
+    .meta{ color:var(--muted); font-size: 14px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--fg);
+      font-size:12px; font-weight:600;
+    }
+    .countdown{ font-size:13px; color:var(--muted); }
+
+    /* ---------- Add City ---------- */
+    .adder{
+      display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin: 6px 0 14px;
+    }
+    input[type="text"]{
+      background:var(--card); color:var(--fg); border:1px solid var(--border);
+      padding:9px 10px; border-radius:9px; min-width:260px;
+    }
+    input::placeholder{ color:var(--muted); }
+    input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+    /* ---------- Grid ---------- */
+    .grid{
+      display:grid; gap:12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .card{
+      border:1px solid var(--border); background:var(--card); border-radius:12px; padding:12px 12px 14px; box-shadow: var(--shadow);
+      display:grid; gap:6px;
+    }
+    .card header{ display:flex; align-items:center; justify-content:space-between; }
+    .title{ font-size:16px; margin:0; }
+    .smalltime{ font-size:28px; font-weight:700; letter-spacing:.02em; font-variant-numeric: tabular-nums; }
+    .sub{ color:var(--muted); font-size:12px; }
+    .remove{
+      border:1px solid var(--border); background:transparent; color:var(--muted);
+      padding:4px 8px; border-radius:8px; cursor:pointer;
+    }
+    .remove:hover{ color:var(--fg); border-color:var(--accent); }
+
+    /* ---------- Misc ---------- */
+    .sr-only{ position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+    @media (prefers-reduced-motion: reduce){
+      *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition:none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Time</h1>
+      <div class="controls">
+        <button id="toggleFormat" aria-pressed="false" title="Toggle 12/24‑hour">24‑hour</button>
+        <button id="resetCities" title="Restore default cities">Reset</button>
+      </div>
+    </header>
+
+    <section class="hero" aria-labelledby="localLabel">
+      <div id="localLabel" class="hero-label">Local time</div>
+      <div id="localClock" class="bigtime" aria-live="off">--:--:--</div>
+      <div class="meta">
+        <span id="localZone">Zone: —</span>
+        <span aria-hidden="true">•</span>
+        <span id="nearby">Locating…</span>
+        <span aria-hidden="true">•</span>
+        <span id="dstBadge" class="badge">DST: —</span>
+      </div>
+      <div id="dstNext" class="countdown"></div>
+    </section>
+
+    <section aria-labelledby="worldLabel">
+      <h2 id="worldLabel" class="sr-only">World clocks</h2>
+      <form id="addForm" class="adder" autocomplete="off">
+        <label class="sr-only" for="tzInput">Add a time zone</label>
+        <input id="tzInput" type="text" list="tzlist" placeholder="Add a city or IANA time zone (e.g., Europe/Paris)" />
+        <datalist id="tzlist"></datalist>
+        <button type="submit" class="btn">Add</button>
+      </form>
+
+      <div id="grid" class="grid" aria-live="off"></div>
+    </section>
+  </main>
+
+  <script>
+  (function(){
+    "use strict";
+
+    /* --------- Config --------- */
+    const DEFAULT_ZONES = [
+      "UTC", "America/New_York", "Europe/London", "Europe/Paris", "Asia/Tokyo"
+    ];
+    const POPULAR_ZONES = [
+      "UTC","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix",
+      "America/Toronto","America/Mexico_City","America/Sao_Paulo","America/Anchorage","America/Halifax",
+      "Europe/London","Europe/Paris","Europe/Berlin","Europe/Madrid","Europe/Rome","Europe/Moscow",
+      "Africa/Casablanca","Africa/Cairo","Africa/Johannesburg",
+      "Asia/Jerusalem","Asia/Dubai","Asia/Kolkata","Asia/Bangkok",
+      "Asia/Singapore","Asia/Hong_Kong","Asia/Tokyo","Asia/Seoul",
+      "Australia/Sydney","Pacific/Auckland"
+    ];
+
+    /* --------- State --------- */
+    const STATE = {
+      is24h: JSON.parse(localStorage.getItem("time.is24h") ?? "true"),
+      zones: new Set(JSON.parse(localStorage.getItem("time.zones") ?? "null") || DEFAULT_ZONES),
+      localTZ: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    };
+    const FORMATTERS = new Map();      // key: `${tz}|${STATE.is24h}`
+    const CARDS = new Map();           // tz -> {root,timeEl,subEl,titleEl}
+
+    /* --------- Helpers --------- */
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    function saveZones(){ localStorage.setItem("time.zones", JSON.stringify([...STATE.zones])); }
+    function saveFormat(){ localStorage.setItem("time.is24h", JSON.stringify(STATE.is24h)); }
+
+    function safeFormatter(tz){
+      const key = tz+"|"+(STATE.is24h?"24":"12");
+      if (FORMATTERS.has(key)) return FORMATTERS.get(key);
+      const fmt = new Intl.DateTimeFormat(navigator.language || "en-US", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: !STATE.is24h, timeZone: tz
+      });
+      FORMATTERS.set(key, fmt);
+      return fmt;
+    }
+
+    function friendlyNameFromTZ(tz){
+      if (tz === "UTC") return "UTC";
+      const part = tz.split("/").pop() || tz;
+      return part.replace(/_/g," ");
+    }
+
+    function offsetLabel(tz, date){
+      try{
+        const parts = new Intl.DateTimeFormat("en", { timeZone: tz, timeZoneName:"shortOffset", hour:"2-digit" })
+          .formatToParts(date);
+        const tzn = parts.find(p=>p.type==="timeZoneName");
+        return tzn ? tzn.value.replace("GMT","UTC") : "";
+      }catch{ return ""; }
+    }
+
+    function validTimeZone(tz){
+      try{ new Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; }
+      catch{ return false; }
+    }
+
+    function msToNextSecond(){
+      const now = Date.now();
+      return 1000 - (now % 1000);
+    }
+
+    function formatDateTime(dt){
+      // Short local date + time for labels (not the main clock)
+      return new Intl.DateTimeFormat(navigator.language || "en-US", {
+        year:"numeric", month:"short", day:"2-digit",
+        hour:"2-digit", minute:"2-digit",
+        hour12: !STATE.is24h
+      }).format(dt);
+    }
+
+    /* --------- Build UI --------- */
+    const grid = $("#grid");
+    const localClock = $("#localClock");
+    const localZone = $("#localZone");
+    const nearby = $("#nearby");
+    const dstBadge = $("#dstBadge");
+    const dstNext = $("#dstNext");
+    const toggleFormatBtn = $("#toggleFormat");
+    const resetBtn = $("#resetCities");
+    const addForm = $("#addForm");
+    const tzInput = $("#tzInput");
+    const tzlist = $("#tzlist");
+
+    // Fill datalist once
+    function populateDatalist(){
+      const opts = new DocumentFragment();
+      (window.Intl && Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : POPULAR_ZONES)
+        .slice(0, 400) // cap to avoid huge lists on some browsers
+        .forEach(tz=>{
+          const opt = document.createElement("option");
+          opt.value = tz;
+          opt.label = friendlyNameFromTZ(tz);
+          opts.appendChild(opt);
+        });
+      tzlist.appendChild(opts);
+    }
+
+    function makeCard(tz){
+      if (CARDS.has(tz)) return;
+      const card = document.createElement("article");
+      card.className = "card";
+      card.dataset.tz = tz;
+      card.innerHTML = `
+        <header>
+          <h3 class="title">${friendlyNameFromTZ(tz)}</h3>
+          <button class="remove" title="Remove ${tz}" aria-label="Remove ${tz}">×</button>
+        </header>
+        <div class="smalltime" aria-live="off">--:--:--</div>
+        <div class="sub" data-sub>—</div>
+      `;
+      grid.appendChild(card);
+      const timeEl = card.querySelector(".smalltime");
+      const subEl = card.querySelector("[data-sub]");
+      const titleEl = card.querySelector(".title");
+
+      card.querySelector(".remove").addEventListener("click", ()=>{
+        STATE.zones.delete(tz); saveZones();
+        FORMATTERS.forEach((_,k)=>{ if (k.startsWith(tz+"|")) FORMATTERS.delete(k); });
+        CARDS.delete(tz); card.remove();
+      }, {passive:true});
+
+      CARDS.set(tz, {root:card, timeEl, subEl, titleEl});
+    }
+
+    function rebuildGrid(){
+      grid.innerHTML = "";
+      [...STATE.zones].forEach(makeCard);
+    }
+
+    /* --------- Local info: zone + IP location --------- */
+    function setLocalLabels(){
+      localZone.textContent = "Zone: " + (STATE.localTZ || "UTC");
+    }
+
+    async function tryIPLocation(){
+      // Best‑effort with timeout and graceful fallback
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 1000);
+      try{
+        const res = await fetch("https://ipapi.co/json/", {signal: ctrl.signal});
+        clearTimeout(t);
+        if (!res.ok) throw new Error("ipapi.co error");
+        const data = await res.json();
+        const city = data.city || null;
+        const country = data.country_name || data.country || null;
+        if (city && country) nearby.textContent = `You are near ${city}, ${country}`;
+        else if (country) nearby.textContent = `You are in ${country}`;
+        else nearby.textContent = "Location not available";
+      }catch{
+        nearby.textContent = "Location based on device time zone";
+      }
+    }
+
+    /* --------- DST: status + next change (local only) --------- */
+    function localHasDST(year){
+      const jan = new Date(year,0,1);
+      const jul = new Date(year,6,1);
+      return jan.getTimezoneOffset() !== jul.getTimezoneOffset();
+    }
+
+    function localDSTActive(now){
+      const y = now.getFullYear();
+      const jan = new Date(y,0,1).getTimezoneOffset();
+      const jul = new Date(y,6,1).getTimezoneOffset();
+      const std = Math.max(jan, jul); // more minutes behind UTC
+      return now.getTimezoneOffset() < std; // smaller offset -> DST
+    }
+
+    // Find the next local DST change by scanning days, then binary search to minute
+    function findNextLocalDSTChange(now = new Date()){
+      const startOffset = now.getTimezoneOffset();
+      const y = now.getFullYear();
+      if (!localHasDST(y) && !localHasDST(y+1)) return null; // no DST here
+      // scan up to ~370 days at noon to find a day where offset differs
+      for (let i=0; i<=370; i++){
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()+i, 12, 0, 0, 0); // local noon
+        const off = d.getTimezoneOffset();
+        if (off !== startOffset){
+          // Transition inside [d-1, d]
+          let lo = new Date(d.getFullYear(), d.getMonth(), d.getDate()-1, 0, 0, 0, 0);
+          let hi = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+          const baseOff = lo.getTimezoneOffset();
+          let found = hi;
+          while ((hi - lo) > 60000){ // search to minute
+            const mid = new Date((lo.getTime() + hi.getTime())/2);
+            const offMid = mid.getTimezoneOffset();
+            if (offMid === baseOff){ lo = new Date(mid.getTime()+1); }
+            else { found = mid; hi = mid; }
+          }
+          return found;
+        }
+      }
+      return null;
+    }
+
+    function humanCountdown(ms){
+      if (ms <= 0) return "now";
+      const s = Math.floor(ms/1000);
+      const d = Math.floor(s/86400);
+      const h = Math.floor((s%86400)/3600);
+      const m = Math.floor((s%3600)/60);
+      return `${d}d ${h}h ${m}m`;
+    }
+
+    function updateLocalDST(now){
+      const active = localDSTActive(now);
+      dstBadge.textContent = "DST: " + (active ? "Active" : "Off");
+    }
+
+    function updateNextDST(now){
+      const next = findNextLocalDSTChange(now);
+      if (!next){
+        dstNext.textContent = "No DST changes in this region.";
+        return;
+      }
+      const ms = next - now;
+      dstNext.textContent = `Next DST change: ${formatDateTime(next)} • ${humanCountdown(ms)}`;
+    }
+
+    function scheduleDSTRecalc(){
+      // recalc just after midnight local
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0,0,5,0);
+      const ms = midnight - now;
+      setTimeout(()=>{ updateLocalDST(new Date()); updateNextDST(new Date()); scheduleDSTRecalc(); }, ms);
+    }
+
+    /* --------- Ticking --------- */
+    function tick(){
+      const now = new Date();
+
+      // Local big clock
+      localClock.textContent = safeFormatter(STATE.localTZ).format(now);
+
+      // World cards
+      for (const [tz, obj] of CARDS){
+        const fmt = safeFormatter(tz);
+        const tstr = fmt.format(now);
+        if (obj.timeEl.textContent !== tstr) obj.timeEl.textContent = tstr;
+
+        // Update sub once per minute (reduce work)
+        if (now.getSeconds() === 0){
+          const off = offsetLabel(tz, now);
+          obj.subEl.textContent = off ? `${off}` : "";
+        }
+      }
+
+      // Local DST badge each minute
+      if (now.getSeconds() === 0) updateLocalDST(now);
+
+      // Align next tick to the next wall‑second
+      setTimeout(tick, msToNextSecond());
+    }
+
+    /* --------- Events --------- */
+    toggleFormatBtn.addEventListener("click", ()=>{
+      STATE.is24h = !STATE.is24h; saveFormat();
+      toggleFormatBtn.textContent = STATE.is24h ? "24‑hour" : "12‑hour";
+      toggleFormatBtn.setAttribute("aria-pressed", String(!STATE.is24h));
+      // clear formatters to rebuild with new hour cycle
+      FORMATTERS.clear();
+    });
+
+    resetBtn.addEventListener("click", ()=>{
+      STATE.zones = new Set(DEFAULT_ZONES);
+      saveZones();
+      rebuildGrid();
+    });
+
+    addForm.addEventListener("submit", (e)=>{
+      e.preventDefault();
+      const val = tzInput.value.trim();
+      if (!val){ return; }
+      const tz = val;
+      if (!validTimeZone(tz)){
+        alert("That does not look like a valid IANA time zone.\nExample: Europe/Paris");
+        return;
+      }
+      STATE.zones.add(tz);
+      saveZones();
+      makeCard(tz);
+      tzInput.value = "";
+    });
+
+    /* --------- Init --------- */
+    populateDatalist();
+    setLocalLabels();
+    rebuildGrid();
+    tryIPLocation();
+
+    // Pre-pin UTC if not present
+    if (!STATE.zones.has("UTC")){ STATE.zones.add("UTC"); saveZones(); makeCard("UTC"); }
+
+    // First paint and timers
+    updateLocalDST(new Date());
+    updateNextDST(new Date());
+    scheduleDSTRecalc();
+    toggleFormatBtn.textContent = STATE.is24h ? "24‑hour" : "12‑hour";
+    setTimeout(tick, msToNextSecond());
+  })();
+  </script>
+</body>
+</html>
