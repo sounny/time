@@ -136,8 +136,18 @@
 
     /* --------- Config --------- */
     const DEFAULT_ZONES = [
-      "UTC", "America/New_York", "Europe/London", "Europe/Paris", "Asia/Tokyo"
+      "UTC",
+      "America/Chicago",      // Austin, Texas
+      "Europe/Paris",         // Paris, France
+      "Africa/Casablanca",    // Marrakech, Morocco
+      "America/New_York"      // Gainesville, Florida
     ];
+    const CUSTOM_NAMES = new Map([
+      ["America/Chicago", "Austin, Texas"],
+      ["Europe/Paris", "Paris, France"],
+      ["Africa/Casablanca", "Marrakech, Morocco"],
+      ["America/New_York", "Gainesville, Florida"],
+    ]);
     const POPULAR_ZONES = [
       "UTC","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix",
       "America/Toronto","America/Mexico_City","America/Sao_Paulo","America/Anchorage","America/Halifax",
@@ -176,6 +186,7 @@
     }
 
     function friendlyNameFromTZ(tz){
+      if (CUSTOM_NAMES.has(tz)) return CUSTOM_NAMES.get(tz);
       if (tz === "UTC") return "UTC";
       const part = tz.split("/").pop() || tz;
       return part.replace(/_/g," ");
