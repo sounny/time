@@ -29,6 +29,7 @@
     }
     h1{ font-size: clamp(22px, 2.4vw, 28px); margin:0; letter-spacing:.2px; }
     .controls{ display:flex; gap:8px; flex-wrap:wrap; }
+    .sort-controls{ justify-content:flex-start; margin: 0 0 10px; }
     button, .btn{
       appearance:none; border:1px solid var(--border); background:var(--card); color:var(--fg);
       padding:8px 10px; border-radius:9px; cursor:pointer; font-weight:600; box-shadow: var(--shadow);
@@ -76,6 +77,7 @@
       border:1px solid var(--border); background:var(--card); border-radius:12px; padding:12px 12px 14px; box-shadow: var(--shadow);
       display:grid; gap:6px;
     }
+    .card.dragging{ opacity:.75; border-style:dashed; }
     .card header{ display:flex; align-items:center; justify-content:space-between; }
     .title{ font-size:16px; margin:0; }
     .smalltime{ font-size:28px; font-weight:700; letter-spacing:.02em; font-variant-numeric: tabular-nums; }
@@ -126,6 +128,11 @@
         <button type="submit" class="btn">Add</button>
       </form>
 
+      <div class="controls sort-controls" aria-label="Sort time zones">
+        <button type="button" id="sortByName">Sort by name</button>
+        <button type="button" id="sortByTime">Sort by current time</button>
+      </div>
+
       <div id="grid" class="grid" aria-live="off"></div>
     </section>
   </main>
@@ -161,7 +168,7 @@
     /* --------- State --------- */
     const STATE = {
       is24h: JSON.parse(localStorage.getItem("time.is24h") ?? "true"),
-      zones: new Set(JSON.parse(localStorage.getItem("time.zones") ?? "null") || DEFAULT_ZONES),
+      zones: dedupe(JSON.parse(localStorage.getItem("time.zones") ?? "null") || DEFAULT_ZONES),
       localTZ: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     };
     const FORMATTERS = new Map();      // key: `${tz}|${STATE.is24h}`
@@ -170,6 +177,17 @@
     /* --------- Helpers --------- */
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    function dedupe(list){
+      if (!Array.isArray(list)) list = DEFAULT_ZONES;
+      const seen = new Set();
+      const result = [];
+      for (const tz of list){
+        if (!tz || seen.has(tz)) continue;
+        seen.add(tz); result.push(tz);
+      }
+      return result;
+    }
 
     function saveZones(){ localStorage.setItem("time.zones", JSON.stringify([...STATE.zones])); }
     function saveFormat(){ localStorage.setItem("time.is24h", JSON.stringify(STATE.is24h)); }
@@ -220,6 +238,11 @@
       }).format(dt);
     }
 
+    function zoneTimeValue(tz, ref = new Date()){
+      // Timestamp for comparison in a given time zone
+      return new Date(ref.toLocaleString("en-US", { timeZone: tz })).getTime();
+    }
+
     /* --------- Build UI --------- */
     const grid = $("#grid");
     const localClock = $("#localClock");
@@ -232,6 +255,14 @@
     const addForm = $("#addForm");
     const tzInput = $("#tzInput");
     const tzlist = $("#tzlist");
+    const sortByNameBtn = $("#sortByName");
+    const sortByTimeBtn = $("#sortByTime");
+
+    function reorderFromDOM(){
+      const order = $$(".card", grid).map(c=>c.dataset.tz).filter(Boolean);
+      STATE.zones = order;
+      saveZones();
+    }
 
     // Fill datalist once
     function populateDatalist(){
@@ -252,6 +283,7 @@
       const card = document.createElement("article");
       card.className = "card";
       card.dataset.tz = tz;
+      card.draggable = true;
       card.innerHTML = `
         <header>
           <h3 class="title">${friendlyNameFromTZ(tz)}</h3>
@@ -265,8 +297,24 @@
       const subEl = card.querySelector("[data-sub]");
       const titleEl = card.querySelector(".title");
 
+      card.addEventListener("dragstart", (e)=>{
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", tz);
+        card.classList.add("dragging");
+      });
+      card.addEventListener("dragend", ()=>{ card.classList.remove("dragging"); reorderFromDOM(); });
+      card.addEventListener("dragover", (e)=>{
+        e.preventDefault();
+        const dragging = grid.querySelector(".card.dragging");
+        if (!dragging || dragging === card) return;
+        const rect = card.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height/2;
+        grid.insertBefore(dragging, before ? card : card.nextSibling);
+      });
+      card.addEventListener("drop", (e)=>{ e.preventDefault(); reorderFromDOM(); });
+
       card.querySelector(".remove").addEventListener("click", ()=>{
-        STATE.zones.delete(tz); saveZones();
+        STATE.zones = STATE.zones.filter(z=>z!==tz); saveZones();
         FORMATTERS.forEach((_,k)=>{ if (k.startsWith(tz+"|")) FORMATTERS.delete(k); });
         CARDS.delete(tz); card.remove();
       }, {passive:true});
@@ -276,7 +324,8 @@
 
     function rebuildGrid(){
       grid.innerHTML = "";
-      [...STATE.zones].forEach(makeCard);
+      CARDS.clear();
+      STATE.zones.forEach(makeCard);
     }
 
     /* --------- Local info: zone + IP location --------- */
@@ -414,7 +463,20 @@
     });
 
     resetBtn.addEventListener("click", ()=>{
-      STATE.zones = new Set(DEFAULT_ZONES);
+      STATE.zones = [...DEFAULT_ZONES];
+      saveZones();
+      rebuildGrid();
+    });
+
+    sortByNameBtn.addEventListener("click", ()=>{
+      STATE.zones = [...STATE.zones].sort((a,b)=>friendlyNameFromTZ(a).localeCompare(friendlyNameFromTZ(b), undefined, {sensitivity:"base"}));
+      saveZones();
+      rebuildGrid();
+    });
+
+    sortByTimeBtn.addEventListener("click", ()=>{
+      const now = new Date();
+      STATE.zones = [...STATE.zones].sort((a,b)=>zoneTimeValue(a, now) - zoneTimeValue(b, now));
       saveZones();
       rebuildGrid();
     });
@@ -428,7 +490,7 @@
         alert("That does not look like a valid IANA time zone.\nExample: Europe/Paris");
         return;
       }
-      STATE.zones.add(tz);
+      if (!STATE.zones.includes(tz)) STATE.zones = [...STATE.zones, tz];
       saveZones();
       makeCard(tz);
       tzInput.value = "";
@@ -441,7 +503,7 @@
     tryIPLocation();
 
     // Pre-pin UTC if not present
-    if (!STATE.zones.has("UTC")){ STATE.zones.add("UTC"); saveZones(); makeCard("UTC"); }
+    if (!STATE.zones.includes("UTC")){ STATE.zones = [...STATE.zones, "UTC"]; saveZones(); makeCard("UTC"); }
 
     // First paint and timers
     updateLocalDST(new Date());
