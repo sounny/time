@@ -78,10 +78,14 @@
       display:grid; gap:6px;
     }
     .card.dragging{ opacity:.75; border-style:dashed; }
-    .card header{ display:flex; align-items:center; justify-content:space-between; }
+    .card header{ display:flex; align-items:center; justify-content:space-between; gap: 8px; }
     .title{ font-size:16px; margin:0; }
     .smalltime{ font-size:28px; font-weight:700; letter-spacing:.02em; font-variant-numeric: tabular-nums; }
     .sub{ color:var(--muted); font-size:12px; }
+    .card-actions{ display:flex; align-items:center; gap:6px; }
+    .pin{ border:1px solid var(--border); background:transparent; color:var(--muted); padding:4px 8px; border-radius:8px; cursor:pointer; }
+    .pin:hover{ color:var(--fg); border-color:var(--accent); }
+    .pin[aria-pressed="true"]{ color:var(--accent); border-color:var(--accent); }
     .remove{
       border:1px solid var(--border); background:transparent; color:var(--muted);
       padding:4px 8px; border-radius:8px; cursor:pointer;
@@ -170,9 +174,10 @@
       is24h: JSON.parse(localStorage.getItem("time.is24h") ?? "true"),
       zones: dedupe(JSON.parse(localStorage.getItem("time.zones") ?? "null") || DEFAULT_ZONES),
       localTZ: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      mainTZ: null,
     };
     const FORMATTERS = new Map();      // key: `${tz}|${STATE.is24h}`
-    const CARDS = new Map();           // tz -> {root,timeEl,subEl,titleEl}
+    const CARDS = new Map();           // tz -> {root,timeEl,subEl,titleEl,pinEl}
 
     /* --------- Helpers --------- */
     const $ = (sel, root=document) => root.querySelector(sel);
@@ -229,12 +234,12 @@
       return 1000 - (now % 1000);
     }
 
-    function formatDateTime(dt){
+    function formatDateTime(dt, tz = STATE.mainTZ){
       // Short local date + time for labels (not the main clock)
       return new Intl.DateTimeFormat(navigator.language || "en-US", {
         year:"numeric", month:"short", day:"2-digit",
         hour:"2-digit", minute:"2-digit",
-        hour12: !STATE.is24h
+        hour12: !STATE.is24h, timeZone: tz
       }).format(dt);
     }
 
@@ -250,6 +255,7 @@
     const nearby = $("#nearby");
     const dstBadge = $("#dstBadge");
     const dstNext = $("#dstNext");
+    const heroLabel = $("#localLabel");
     const toggleFormatBtn = $("#toggleFormat");
     const resetBtn = $("#resetCities");
     const addForm = $("#addForm");
@@ -287,7 +293,10 @@
       card.innerHTML = `
         <header>
           <h3 class="title">${friendlyNameFromTZ(tz)}</h3>
-          <button class="remove" title="Remove ${tz}" aria-label="Remove ${tz}">×</button>
+          <div class="card-actions">
+            <button class="pin" title="Make ${tz} the main clock" aria-label="Make ${tz} the main clock" aria-pressed="false">☆</button>
+            <button class="remove" title="Remove ${tz}" aria-label="Remove ${tz}">×</button>
+          </div>
         </header>
         <div class="smalltime" aria-live="off">--:--:--</div>
         <div class="sub" data-sub>—</div>
@@ -296,6 +305,7 @@
       const timeEl = card.querySelector(".smalltime");
       const subEl = card.querySelector("[data-sub]");
       const titleEl = card.querySelector(".title");
+      const pinEl = card.querySelector(".pin");
 
       card.addEventListener("dragstart", (e)=>{
         e.dataTransfer.effectAllowed = "move";
@@ -313,24 +323,37 @@
       });
       card.addEventListener("drop", (e)=>{ e.preventDefault(); reorderFromDOM(); });
 
+      pinEl.addEventListener("click", ()=>{ setMainTZ(tz); }, {passive:true});
+
       card.querySelector(".remove").addEventListener("click", ()=>{
         STATE.zones = STATE.zones.filter(z=>z!==tz); saveZones();
         FORMATTERS.forEach((_,k)=>{ if (k.startsWith(tz+"|")) FORMATTERS.delete(k); });
+        if (STATE.mainTZ === tz) setMainTZ(STATE.localTZ);
         CARDS.delete(tz); card.remove();
       }, {passive:true});
 
-      CARDS.set(tz, {root:card, timeEl, subEl, titleEl});
+      CARDS.set(tz, {root:card, timeEl, subEl, titleEl, pinEl});
     }
 
     function rebuildGrid(){
       grid.innerHTML = "";
       CARDS.clear();
       STATE.zones.forEach(makeCard);
+      refreshPinStates();
     }
 
     /* --------- Local info: zone + IP location --------- */
+    let locationMessage = "Locating…";
+
+    function renderNearby(){
+      if (STATE.mainTZ === STATE.localTZ) nearby.textContent = locationMessage;
+      else nearby.textContent = `Pinned: ${friendlyNameFromTZ(STATE.mainTZ)}`;
+    }
+
     function setLocalLabels(){
-      localZone.textContent = "Zone: " + (STATE.localTZ || "UTC");
+      heroLabel.textContent = STATE.mainTZ === STATE.localTZ ? "Local time" : "Main time";
+      localZone.textContent = "Zone: " + (STATE.mainTZ || "UTC");
+      renderNearby();
     }
 
     async function tryIPLocation(){
@@ -344,47 +367,70 @@
         const data = await res.json();
         const city = data.city || null;
         const country = data.country_name || data.country || null;
-        if (city && country) nearby.textContent = `You are near ${city}, ${country}`;
-        else if (country) nearby.textContent = `You are in ${country}`;
-        else nearby.textContent = "Location not available";
+        if (city && country) locationMessage = `You are near ${city}, ${country}`;
+        else if (country) locationMessage = `You are in ${country}`;
+        else locationMessage = "Location not available";
       }catch{
-        nearby.textContent = "Location based on device time zone";
+        locationMessage = "Location based on device time zone";
       }
+      renderNearby();
     }
 
-    /* --------- DST: status + next change (local only) --------- */
-    function localHasDST(year){
-      const jan = new Date(year,0,1);
-      const jul = new Date(year,6,1);
-      return jan.getTimezoneOffset() !== jul.getTimezoneOffset();
+    /* --------- DST: status + next change for the main clock --------- */
+    function offsetMinutes(tz, date){
+      try{
+        const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName:"shortOffset", hour:"2-digit", minute:"2-digit", second:"2-digit" })
+          .formatToParts(date);
+        const tzn = parts.find(p=>p.type==="timeZoneName");
+        if (!tzn) return null;
+        const label = tzn.value.replace("GMT","UTC");
+        if (label === "UTC") return 0;
+        const match = label.match(/^UTC([+-])(\d{1,2})(?::?(\d{2}))?$/);
+        if (!match) return null;
+        const sign = match[1] === "-" ? -1 : 1;
+        const hours = Number(match[2]);
+        const mins = Number(match[3] || "0");
+        return sign * (hours*60 + mins);
+      }catch{ return null; }
     }
 
-    function localDSTActive(now){
-      const y = now.getFullYear();
-      const jan = new Date(y,0,1).getTimezoneOffset();
-      const jul = new Date(y,6,1).getTimezoneOffset();
-      const std = Math.max(jan, jul); // more minutes behind UTC
-      return now.getTimezoneOffset() < std; // smaller offset -> DST
+    function tzHasDST(tz, year){
+      const jan = offsetMinutes(tz, new Date(Date.UTC(year,0,1,12,0,0,0)));
+      const jul = offsetMinutes(tz, new Date(Date.UTC(year,6,1,12,0,0,0)));
+      if (jan === null || jul === null) return false;
+      return jan !== jul;
     }
 
-    // Find the next local DST change by scanning days, then binary search to minute
-    function findNextLocalDSTChange(now = new Date()){
-      const startOffset = now.getTimezoneOffset();
-      const y = now.getFullYear();
-      if (!localHasDST(y) && !localHasDST(y+1)) return null; // no DST here
-      // scan up to ~370 days at noon to find a day where offset differs
+    function tzDSTActive(tz, now){
+      const y = now.getUTCFullYear();
+      const jan = offsetMinutes(tz, new Date(Date.UTC(y,0,1,12,0,0,0)));
+      const jul = offsetMinutes(tz, new Date(Date.UTC(y,6,1,12,0,0,0)));
+      const cur = offsetMinutes(tz, now);
+      if (jan === null || jul === null || cur === null) return false;
+      const std = Math.max(jan, jul);
+      return cur < std; // smaller offset -> DST
+    }
+
+    // Find the next DST change by scanning days, then binary search to minute
+    function findNextDSTChange(tz, now = new Date()){
+      const startOffset = offsetMinutes(tz, now);
+      if (startOffset === null) return null;
+      const y = now.getUTCFullYear();
+      if (!tzHasDST(tz, y) && !tzHasDST(tz, y+1)) return null; // no DST here
+      // scan up to ~370 days at noon UTC to find a day where offset differs
       for (let i=0; i<=370; i++){
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()+i, 12, 0, 0, 0); // local noon
-        const off = d.getTimezoneOffset();
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+i, 12, 0, 0, 0));
+        const off = offsetMinutes(tz, d);
+        if (off === null) continue;
         if (off !== startOffset){
           // Transition inside [d-1, d]
-          let lo = new Date(d.getFullYear(), d.getMonth(), d.getDate()-1, 0, 0, 0, 0);
-          let hi = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-          const baseOff = lo.getTimezoneOffset();
+          let lo = new Date(d.getTime() - 24*3600*1000);
+          let hi = d;
+          const baseOff = offsetMinutes(tz, lo);
           let found = hi;
           while ((hi - lo) > 60000){ // search to minute
             const mid = new Date((lo.getTime() + hi.getTime())/2);
-            const offMid = mid.getTimezoneOffset();
+            const offMid = offsetMinutes(tz, mid);
             if (offMid === baseOff){ lo = new Date(mid.getTime()+1); }
             else { found = mid; hi = mid; }
           }
@@ -403,35 +449,25 @@
       return `${d}d ${h}h ${m}m`;
     }
 
-    function updateLocalDST(now){
-      const active = localDSTActive(now);
+    function updateDST(now){
+      const tz = STATE.mainTZ || STATE.localTZ;
+      const active = tzDSTActive(tz, now);
       dstBadge.textContent = "DST: " + (active ? "Active" : "Off");
-    }
-
-    function updateNextDST(now){
-      const next = findNextLocalDSTChange(now);
+      const next = findNextDSTChange(tz, now);
       if (!next){
         dstNext.textContent = "No DST changes in this region.";
         return;
       }
       const ms = next - now;
-      dstNext.textContent = `Next DST change: ${formatDateTime(next)} • ${humanCountdown(ms)}`;
-    }
-
-    function scheduleDSTRecalc(){
-      // recalc just after midnight local
-      const now = new Date();
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 0,0,5,0);
-      const ms = midnight - now;
-      setTimeout(()=>{ updateLocalDST(new Date()); updateNextDST(new Date()); scheduleDSTRecalc(); }, ms);
+      dstNext.textContent = `Next DST change: ${formatDateTime(next, tz)} • ${humanCountdown(ms)}`;
     }
 
     /* --------- Ticking --------- */
     function tick(){
       const now = new Date();
 
-      // Local big clock
-      localClock.textContent = safeFormatter(STATE.localTZ).format(now);
+      // Hero big clock
+      localClock.textContent = safeFormatter(STATE.mainTZ).format(now);
 
       // World cards
       for (const [tz, obj] of CARDS){
@@ -446,8 +482,8 @@
         }
       }
 
-      // Local DST badge each minute
-      if (now.getSeconds() === 0) updateLocalDST(now);
+      // Hero DST badge each minute
+      if (now.getSeconds() === 0) updateDST(now);
 
       // Align next tick to the next wall‑second
       setTimeout(tick, msToNextSecond());
@@ -496,19 +532,42 @@
       tzInput.value = "";
     });
 
+    function refreshPinStates(){
+      for (const [tz, obj] of CARDS){
+        const pinned = tz === STATE.mainTZ;
+        obj.pinEl.setAttribute("aria-pressed", String(pinned));
+        obj.pinEl.textContent = pinned ? "★" : "☆";
+        obj.pinEl.title = pinned ? `${tz} is the main clock` : `Make ${tz} the main clock`;
+      }
+    }
+
+    function saveMainTZ(){ localStorage.setItem("time.mainTZ", JSON.stringify(STATE.mainTZ)); }
+
+    function setMainTZ(tz){
+      if (!tz || !validTimeZone(tz)) tz = STATE.localTZ;
+      STATE.mainTZ = tz;
+      saveMainTZ();
+      localClock.textContent = safeFormatter(STATE.mainTZ).format(new Date());
+      setLocalLabels();
+      refreshPinStates();
+      updateDST(new Date());
+    }
+
     /* --------- Init --------- */
     populateDatalist();
+    STATE.mainTZ = JSON.parse(localStorage.getItem("time.mainTZ") ?? "null") || STATE.localTZ;
+    if (!validTimeZone(STATE.mainTZ)) STATE.mainTZ = STATE.localTZ;
+
     setLocalLabels();
     rebuildGrid();
+    refreshPinStates();
     tryIPLocation();
 
     // Pre-pin UTC if not present
-    if (!STATE.zones.includes("UTC")){ STATE.zones = [...STATE.zones, "UTC"]; saveZones(); makeCard("UTC"); }
+    if (!STATE.zones.includes("UTC")){ STATE.zones = [...STATE.zones, "UTC"]; saveZones(); makeCard("UTC"); refreshPinStates(); }
 
     // First paint and timers
-    updateLocalDST(new Date());
-    updateNextDST(new Date());
-    scheduleDSTRecalc();
+    updateDST(new Date());
     toggleFormatBtn.textContent = STATE.is24h ? "24‑hour" : "12‑hour";
     setTimeout(tick, msToNextSecond());
   })();
