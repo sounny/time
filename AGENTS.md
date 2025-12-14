@@ -8,3 +8,5 @@ This file serves as a lightweight working memory for agents collaborating on the
 
 ## 2025-01-15
 - Switched persisted time zone list to an ordered array and added drag-and-drop plus sort controls for world clock cards.
+## 2025-03-04
+- Added an IP-based location map preview to the page using the openstreetmap.de static map service.
