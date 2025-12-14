@@ -57,6 +57,21 @@
     }
     .countdown{ font-size:13px; color:var(--muted); }
 
+    /* ---------- Map ---------- */
+    .map-card{
+      border:1px solid var(--border); background:var(--card); border-radius:14px; box-shadow: var(--shadow);
+      padding:16px; display:grid; gap:10px; margin: 0 0 18px; overflow:hidden;
+    }
+    .map-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .map-title{ margin:0; font-size:18px; }
+    .map-status{ color:var(--muted); font-size:14px; margin:0; }
+    .map-frame{
+      width:100%; max-height:360px; border-radius:12px; border:1px solid var(--border);
+      object-fit:cover; background: repeating-linear-gradient(45deg, var(--card), var(--card) 10px, var(--border) 10px, var(--border) 20px);
+      min-height: 220px;
+    }
+    .map-empty{ display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; }
+
     /* ---------- Add City ---------- */
     .adder{
       display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin: 6px 0 14px;
@@ -123,6 +138,14 @@
       <div id="dstNext" class="countdown"></div>
     </section>
 
+    <section class="map-card" aria-labelledby="mapLabel">
+      <div class="map-head">
+        <h2 id="mapLabel" class="map-title">Location map</h2>
+        <p id="mapStatus" class="map-status">Waiting for location…</p>
+      </div>
+      <img id="mapImage" class="map-frame" alt="Map placeholder" loading="lazy" />
+    </section>
+
     <section aria-labelledby="worldLabel">
       <h2 id="worldLabel" class="sr-only">World clocks</h2>
       <form id="addForm" class="adder" autocomplete="off">
@@ -176,6 +199,7 @@
       localTZ: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       mainTZ: null,
     };
+    const MAP_STATE = { lat:null, lon:null, label:null };
     const FORMATTERS = new Map();      // key: `${tz}|${STATE.is24h}`
     const CARDS = new Map();           // tz -> {root,timeEl,subEl,titleEl,pinEl}
 
@@ -256,6 +280,8 @@
     const dstBadge = $("#dstBadge");
     const dstNext = $("#dstNext");
     const heroLabel = $("#localLabel");
+    const mapImg = $("#mapImage");
+    const mapStatus = $("#mapStatus");
     const toggleFormatBtn = $("#toggleFormat");
     const resetBtn = $("#resetCities");
     const addForm = $("#addForm");
@@ -350,6 +376,23 @@
       else nearby.textContent = `Pinned: ${friendlyNameFromTZ(STATE.mainTZ)}`;
     }
 
+    function renderMap(){
+      if (!mapImg || !mapStatus) return;
+      if (Number.isFinite(MAP_STATE.lat) && Number.isFinite(MAP_STATE.lon)){
+        const lat = MAP_STATE.lat.toFixed(4);
+        const lon = MAP_STATE.lon.toFixed(4);
+        const label = MAP_STATE.label || locationMessage || "your approximate location";
+        const marker = `${lat},${lon},lightblue1`;
+        mapImg.src = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=4&size=900x320&markers=${marker}`;
+        mapImg.alt = `Map centered near ${label}`;
+        mapStatus.textContent = `Showing an approximate map for ${label}`;
+      }else{
+        mapImg.removeAttribute("src");
+        mapImg.alt = "Map placeholder";
+        mapStatus.textContent = "Map unavailable without location access.";
+      }
+    }
+
     function setLocalLabels(){
       heroLabel.textContent = STATE.mainTZ === STATE.localTZ ? "Local time" : "Main time";
       localZone.textContent = "Zone: " + (STATE.mainTZ || "UTC");
@@ -367,13 +410,28 @@
         const data = await res.json();
         const city = data.city || null;
         const country = data.country_name || data.country || null;
-        if (city && country) locationMessage = `You are near ${city}, ${country}`;
-        else if (country) locationMessage = `You are in ${country}`;
-        else locationMessage = "Location not available";
+        const lat = Number(data.latitude);
+        const lon = Number(data.longitude);
+        if (city && country){
+          locationMessage = `You are near ${city}, ${country}`;
+          MAP_STATE.label = `${city}, ${country}`;
+        }else if (country){
+          locationMessage = `You are in ${country}`;
+          MAP_STATE.label = country;
+        }else{
+          locationMessage = "Location not available";
+          MAP_STATE.label = null;
+        }
+        if (Number.isFinite(lat) && Number.isFinite(lon)){
+          MAP_STATE.lat = lat;
+          MAP_STATE.lon = lon;
+        }
       }catch{
         locationMessage = "Location based on device time zone";
+        MAP_STATE.lat = null; MAP_STATE.lon = null; MAP_STATE.label = null;
       }
       renderNearby();
+      renderMap();
     }
 
     /* --------- DST: status + next change for the main clock --------- */
