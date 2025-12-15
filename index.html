@@ -57,41 +57,6 @@
     }
     .countdown{ font-size:13px; color:var(--muted); }
 
-    /* ---------- Map ---------- */
-    .map-card{
-      border:1px solid var(--border); background:var(--card); border-radius:14px; box-shadow: var(--shadow);
-      padding:16px; display:grid; gap:10px; margin: 0 0 18px; overflow:hidden;
-    }
-    .map-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-    .map-title{ margin:0; font-size:18px; }
-    .map-status{ color:var(--muted); font-size:14px; margin:0; }
-    .tz-map{
-      position:relative; border-radius:12px; border:1px solid var(--border);
-      min-height:240px; overflow:hidden; background:radial-gradient(circle at 30% 30%, rgba(110,168,254,.08), transparent 45%),
-        radial-gradient(circle at 70% 70%, rgba(110,168,254,.12), transparent 50%),
-        repeating-linear-gradient(90deg, color-mix(in srgb, var(--border) 70%, transparent) 0 32px, transparent 32px 64px),
-        linear-gradient(90deg, rgba(110,168,254,.12), rgba(110,168,254,.04) 20%, rgba(110,168,254,.12) 40%, rgba(110,168,254,.04) 60%, rgba(110,168,254,.12) 80%, rgba(110,168,254,.04));
-      isolation:isolate;
-    }
-    .tz-stripes{ position:absolute; inset:0; pointer-events:none; background: repeating-linear-gradient(90deg, transparent 0 44px, rgba(255,255,255,.04) 44px 48px); mix-blend-mode:screen; opacity:.6; }
-    .tz-globe{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.32; filter: drop-shadow(0 8px 16px rgba(0,0,0,.24)); }
-    .pin-layer{ position:absolute; inset:0; padding:22px 18px 14px; display:grid; align-content:end; }
-    .map-pin{
-      position:absolute; transform:translate(-50%,-50%); min-width:110px; max-width:160px; pointer-events:auto;
-      background:rgba(0,0,0,.24); backdrop-filter:blur(6px); border:1px solid var(--border); border-radius:10px; padding:7px 9px;
-      color:var(--fg); box-shadow: var(--shadow); text-align:center; font-size:12px;
-    }
-    .map-pin[data-main="true"]{ border-color:var(--accent); box-shadow:0 4px 18px rgba(110,168,254,.35), var(--shadow); }
-    .map-pin strong{ display:block; font-size:13px; margin-bottom:4px; }
-    .map-pin-time{ color:var(--muted); font-variant-numeric: tabular-nums; }
-    .map-pin-dot{ position:absolute; inset:auto auto -10px 50%; transform:translateX(-50%); width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
-    .map-pin[data-main="true"] .map-pin-dot{ background:var(--accent); box-shadow:0 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent); }
-    .map-pin[data-level="1"]{ opacity:.9; }
-    .map-pin[data-level="2"]{ opacity:.85; }
-    .map-pin[data-level="3"]{ opacity:.8; }
-    .map-pin[data-level="4"]{ opacity:.75; }
-    .map-pin[data-level="5"]{ opacity:.7; }
-
     /* ---------- Add City ---------- */
     .adder{
       display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin: 6px 0 14px;
@@ -158,30 +123,6 @@
       <div id="dstNext" class="countdown"></div>
     </section>
 
-    <section class="map-card" aria-labelledby="mapLabel">
-      <div class="map-head">
-        <h2 id="mapLabel" class="map-title">Time zone map</h2>
-        <p id="mapStatus" class="map-status">Pins follow your saved clocks by UTC offset.</p>
-      </div>
-      <div id="tzMap" class="tz-map" role="img" aria-label="Time zone stripes with pins for your clocks">
-        <div class="tz-stripes" aria-hidden="true"></div>
-        <svg class="tz-globe" viewBox="0 0 800 360" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-          <defs>
-            <linearGradient id="glow" x1="0%" x2="100%" y1="0%" y2="0%">
-              <stop offset="0%" stop-color="var(--accent)" stop-opacity=".45" />
-              <stop offset="50%" stop-color="var(--accent)" stop-opacity=".25" />
-              <stop offset="100%" stop-color="var(--accent)" stop-opacity=".4" />
-            </linearGradient>
-          </defs>
-          <rect x="0" y="0" width="800" height="360" fill="url(#glow)" opacity=".18" />
-          <path fill="var(--fg)" opacity=".22" d="M75,182c40-52,120-74,200-50c34,10,70,32,102,26c38-7,28-44,64-48c46-5,116,44,148,74c26,24,69,67,83,94c4,7-4,14-11,10c-57-34-114-78-172-72c-52,5-101,42-151,44c-66,3-142-43-193-70C99,180,65,195,75,182z" />
-          <path fill="var(--fg)" opacity=".18" d="M94,110c24-18,60-34,112-26c62,10,86,70,140,80c31,6,80-20,108-34c18-10,23,14,45,20c28,8,53-28,78-18c38,16,70,92,70,128c0,6-5,9-10,6c-32-21-67-54-106-56c-66-2-134,54-198,50c-44-3-114-61-150-86C102,154,70,128,94,110z" />
-          <circle cx="420" cy="96" r="38" fill="var(--fg)" opacity=".12" />
-        </svg>
-        <div id="pinLayer" class="pin-layer" aria-live="polite"></div>
-      </div>
-    </section>
-
     <section aria-labelledby="worldLabel">
       <h2 id="worldLabel" class="sr-only">World clocks</h2>
       <form id="addForm" class="adder" autocomplete="off">
@@ -227,7 +168,6 @@
       "Asia/Singapore","Asia/Hong_Kong","Asia/Tokyo","Asia/Seoul",
       "Australia/Sydney","Pacific/Auckland"
     ];
-    const TZ_RANGE = { min: -12, max: 14 };
 
     /* --------- State --------- */
     const STATE = {
@@ -253,8 +193,6 @@
       }
       return result;
     }
-
-    const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
     function saveZones(){ localStorage.setItem("time.zones", JSON.stringify([...STATE.zones])); }
     function saveFormat(){ localStorage.setItem("time.is24h", JSON.stringify(STATE.is24h)); }
@@ -318,8 +256,6 @@
     const dstBadge = $("#dstBadge");
     const dstNext = $("#dstNext");
     const heroLabel = $("#localLabel");
-    const mapStatus = $("#mapStatus");
-    const pinLayer = $("#pinLayer");
     const toggleFormatBtn = $("#toggleFormat");
     const resetBtn = $("#resetCities");
     const addForm = $("#addForm");
@@ -332,7 +268,6 @@
       const order = $$(".card", grid).map(c=>c.dataset.tz).filter(Boolean);
       STATE.zones = order;
       saveZones();
-      renderMapPins(new Date());
     }
 
     // Fill datalist once
@@ -395,7 +330,6 @@
         FORMATTERS.forEach((_,k)=>{ if (k.startsWith(tz+"|")) FORMATTERS.delete(k); });
         if (STATE.mainTZ === tz) setMainTZ(STATE.localTZ);
         CARDS.delete(tz); card.remove();
-        renderMapPins(new Date());
       }, {passive:true});
 
       CARDS.set(tz, {root:card, timeEl, subEl, titleEl, pinEl});
@@ -406,7 +340,6 @@
       CARDS.clear();
       STATE.zones.forEach(makeCard);
       refreshPinStates();
-      renderMapPins(new Date());
     }
 
     /* --------- Local info: zone + IP location --------- */
@@ -415,64 +348,6 @@
     function renderNearby(){
       if (STATE.mainTZ === STATE.localTZ) nearby.textContent = locationMessage;
       else nearby.textContent = `Pinned: ${friendlyNameFromTZ(STATE.mainTZ)}`;
-    }
-
-    function hoursFromOffset(tz, date){
-      const mins = offsetMinutes(tz, date);
-      return Number.isFinite(mins) ? mins / 60 : null;
-    }
-
-    function percentFromOffset(hours){
-      const clamped = clamp(hours, TZ_RANGE.min, TZ_RANGE.max);
-      return ((clamped - TZ_RANGE.min) / (TZ_RANGE.max - TZ_RANGE.min)) * 100;
-    }
-
-    function renderMapPins(now = new Date()){
-      if (!pinLayer || !mapStatus) return;
-      pinLayer.innerHTML = "";
-      const pins = STATE.zones.map(tz=>{
-        const hours = hoursFromOffset(tz, now);
-        if (hours === null) return null;
-        return { tz, hours, label: friendlyNameFromTZ(tz), offset: offsetLabel(tz, now) };
-      }).filter(Boolean);
-
-      if (!pins.length){
-        mapStatus.textContent = "Add a city to see pins on the map.";
-        return;
-      }
-
-      pins.sort((a,b)=>a.hours - b.hours);
-      const bucketCounts = new Map();
-      const frag = document.createDocumentFragment();
-
-      for (const pinData of pins){
-        const pct = percentFromOffset(pinData.hours);
-        const bucket = Math.round(pct);
-        const used = bucketCounts.get(bucket) || 0;
-        bucketCounts.set(bucket, used + 1);
-        const direction = used % 2 === 0 ? -1 : 1;
-        const steps = Math.floor(used / 2) + 1;
-        const top = clamp(58 + direction * steps * 10, 18, 86);
-        const utcLabel = pinData.offset || `UTC${pinData.hours >= 0 ? "+" : ""}${pinData.hours.toFixed(1)}`;
-        const el = document.createElement("div");
-        el.className = "map-pin";
-        el.dataset.level = String(Math.min(5, used + 1));
-        el.dataset.main = pinData.tz === STATE.mainTZ;
-        el.style.left = `${pct}%`;
-        el.style.top = `${top}%`;
-        const timeStr = safeFormatter(pinData.tz).format(now);
-        el.innerHTML = `
-          <strong>${pinData.label}</strong>
-          <div class="map-pin-time">${timeStr} • ${utcLabel}</div>
-          <span class="map-pin-dot" aria-hidden="true"></span>
-        `;
-        el.setAttribute("aria-label", `${pinData.label} is ${utcLabel}; current time ${timeStr}`);
-        frag.appendChild(el);
-      }
-
-      pinLayer.appendChild(frag);
-      const pinnedName = friendlyNameFromTZ(STATE.mainTZ || STATE.localTZ);
-      mapStatus.textContent = `Pins follow each clock's current UTC offset — ${pins.length} shown (★ ${pinnedName}).`;
     }
 
     function setLocalLabels(){
@@ -614,7 +489,6 @@
       // Hero DST badge each minute
       if (now.getSeconds() === 0){
         updateDST(now);
-        renderMapPins(now);
       }
 
       // Align next tick to the next wall‑second
@@ -628,7 +502,6 @@
       toggleFormatBtn.setAttribute("aria-pressed", String(!STATE.is24h));
       // clear formatters to rebuild with new hour cycle
       FORMATTERS.clear();
-      renderMapPins(new Date());
     });
 
     resetBtn.addEventListener("click", ()=>{
@@ -662,7 +535,6 @@
       if (!STATE.zones.includes(tz)) STATE.zones = [...STATE.zones, tz];
       saveZones();
       makeCard(tz);
-      renderMapPins(new Date());
       tzInput.value = "";
     });
 
@@ -685,7 +557,6 @@
       setLocalLabels();
       refreshPinStates();
       updateDST(new Date());
-      renderMapPins(new Date());
     }
 
     /* --------- Init --------- */
