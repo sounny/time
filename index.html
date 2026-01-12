@@ -56,6 +56,14 @@
       font-size:12px; font-weight:600;
     }
     .countdown{ font-size:13px; color:var(--muted); }
+    .system-meta{
+      color:var(--muted);
+      font-size:13px;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
 
     /* ---------- Add City ---------- */
     .adder{
@@ -113,6 +121,7 @@
     <section class="hero" aria-labelledby="localLabel">
       <div id="localLabel" class="hero-label">Local time</div>
       <div id="localClock" class="bigtime" aria-live="off">--:--:--</div>
+      <div id="systemTime" class="system-meta">System time: --:--:--</div>
       <div class="meta">
         <span id="localZone">Zone: —</span>
         <span aria-hidden="true">•</span>
@@ -120,6 +129,7 @@
         <span aria-hidden="true">•</span>
         <span id="dstBadge" class="badge">DST: —</span>
       </div>
+      <div id="systemZone" class="system-meta">System zone: —</div>
       <div id="dstNext" class="countdown"></div>
     </section>
 
@@ -255,6 +265,8 @@
     const nearby = $("#nearby");
     const dstBadge = $("#dstBadge");
     const dstNext = $("#dstNext");
+    const systemTime = $("#systemTime");
+    const systemZone = $("#systemZone");
     const heroLabel = $("#localLabel");
     const toggleFormatBtn = $("#toggleFormat");
     const resetBtn = $("#resetCities");
@@ -353,6 +365,7 @@
     function setLocalLabels(){
       heroLabel.textContent = STATE.mainTZ === STATE.localTZ ? "Local time" : "Main time";
       localZone.textContent = "Zone: " + (STATE.mainTZ || "UTC");
+      systemZone.textContent = "System zone: " + (STATE.localTZ || "UTC");
       renderNearby();
     }
 
@@ -472,6 +485,7 @@
 
       // Hero big clock
       localClock.textContent = safeFormatter(STATE.mainTZ).format(now);
+      systemTime.textContent = "System time: " + safeFormatter(STATE.localTZ).format(now);
 
       // World cards
       for (const [tz, obj] of CARDS){

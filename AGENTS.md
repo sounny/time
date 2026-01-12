@@ -10,3 +10,5 @@ This file serves as a lightweight working memory for agents collaborating on the
 - Switched persisted time zone list to an ordered array and added drag-and-drop plus sort controls for world clock cards.
 ## 2025-03-04
 - Added an IP-based location map preview to the page using the openstreetmap.de static map service.
+## 2025-03-10
+- Added a system time display so users can compare local device time against IP-based location details.
